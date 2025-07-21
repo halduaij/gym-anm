@@ -1,7 +1,13 @@
 import numpy as np
 from typing import Optional, Callable, Sequence
 from .envs.ieee33_env import IEEE33Env
-from .simulator.components import CapacitorBank
+from .simulator.components import (
+    CapacitorBank,
+    Generator,
+    RenewableGen,
+    StorageUnit,
+    OLTC,
+)
 
 
 def generate_dataset(env, agent: Optional[Callable], steps: int):
@@ -110,18 +116,57 @@ class CapBankExpert:
         self.env = env
         self.v_min = v_min
         self.v_max = v_max
-        self.cap_ids = [i for i, d in env.unwrapped.simulator.devices.items() if isinstance(d, CapacitorBank)]
-        self.oltc_ids = [i for i, d in env.unwrapped.simulator.devices.items() if hasattr(d, "t_bus")]
+        sim = env.unwrapped.simulator
+        self.cap_ids = [i for i, d in sim.devices.items() if isinstance(d, CapacitorBank)]
+        self.oltc_ids = [i for i, d in sim.devices.items() if isinstance(d, OLTC)]
+        self.rer_ids = [i for i, d in sim.devices.items() if isinstance(d, RenewableGen) and not d.is_slack]
+        self.gen_non_slack_ids = [
+            i for i, d in sim.devices.items() if isinstance(d, Generator) and not d.is_slack
+        ]
 
     def act(self, env: IEEE33Env):
+        sim = env.unwrapped.simulator
         action = np.zeros(env.action_space.shape[0])
+
+        gen_ids = self.gen_non_slack_ids
+        N_gen = len(gen_ids)
+        N_des = len([i for i, d in sim.devices.items() if isinstance(d, StorageUnit)])
+
         base = 0
+        # Active power of non-slack generators
+        for idx, dev_id in enumerate(gen_ids):
+            dev = sim.devices[dev_id]
+            if dev_id in self.rer_ids:
+                action[base + idx] = dev.p_pot * sim.baseMVA
+            else:
+                action[base + idx] = 0.0
+        base += N_gen
+
+        # Reactive power of non-slack generators
+        for idx, dev_id in enumerate(gen_ids):
+            action[base + idx] = 0.0
+        base += N_gen
+
+        # DES units (inactive by default)
+        base += N_des  # P
+        base += N_des  # Q
+
+        # Capacitor banks
         for idx in range(len(self.cap_ids)):
             action[base + idx] = 0.0
-
         base += len(self.cap_ids)
-        for idx in range(len(self.oltc_ids)):
-            action[base + idx] = 1.0
+
+        # OLTCs
+        for idx, dev_id in enumerate(self.oltc_ids):
+            dev = sim.devices[dev_id]
+            bus_v = np.abs(sim.buses[dev.t_bus].v)
+            if bus_v < self.v_min:
+                tap = dev.tap_max
+            elif bus_v > self.v_max:
+                tap = dev.tap_min
+            else:
+                tap = dev.tap
+            action[base + idx] = tap
 
         return action
 
@@ -157,7 +202,9 @@ class NoisyCapBankExpert(CapBankExpert):
     def act(self, env: IEEE33Env):
         action = CapBankExpert.act(self, env)
         sim = env.unwrapped.simulator
-        base = 0
+        N_gen = len(self.gen_non_slack_ids)
+        N_des = len([i for i, d in sim.devices.items() if isinstance(d, StorageUnit)])
+        base = 2 * N_gen + 2 * N_des
         for idx, dev_id in enumerate(self.cap_ids):
             dev = sim.devices[dev_id]
             bus_v = np.abs(sim.buses[dev.bus_id].v)
@@ -207,7 +254,9 @@ class LaggingCapBankExpert(CapBankExpert):
             self._history = self._history[-self.lag - 1 :]
 
         action = CapBankExpert.act(self, env)
-        base = 0
+        N_gen = len(self.gen_non_slack_ids)
+        N_des = len([i for i, d in sim.devices.items() if isinstance(d, StorageUnit)])
+        base = 2 * N_gen + 2 * N_des
         for idx, dev_id in enumerate(self.cap_ids):
             dev = sim.devices[dev_id]
             bus_v = used_vs[idx]
@@ -238,7 +287,9 @@ class HysteresisCapBankExpert(CapBankExpert):
         action = CapBankExpert.act(self, env)
         self._current = action.copy()
         sim = env.unwrapped.simulator
-        base = 0
+        N_gen = len(self.gen_non_slack_ids)
+        N_des = len([i for i, d in sim.devices.items() if isinstance(d, StorageUnit)])
+        base = 2 * N_gen + 2 * N_des
         for idx, dev_id in enumerate(self.cap_ids):
             dev = sim.devices[dev_id]
             bus_v = np.abs(sim.buses[dev.bus_id].v)
