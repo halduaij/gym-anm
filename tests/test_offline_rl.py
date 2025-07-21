@@ -12,6 +12,7 @@ from gym_anm import (
     NoisyCapBankExpert,
     DelayedCapBankExpert,
     LaggingCapBankExpert,
+    OperatorLogExpert,
 )
 
 
@@ -68,3 +69,14 @@ def test_mixed_dataset_weights():
     )
 
     np.testing.assert_allclose(actions_a, actions_b)
+
+
+def test_operator_log_expert():
+
+    env = IEEE33Env()
+    expert = OperatorLogExpert(env, schedule=[1], noise_std=0.0)
+
+    states, actions = generate_dataset(env, expert, 3)
+
+    assert states.shape == (3, env.observation_space.shape[0])
+    assert actions.shape == (3, env.action_space.shape[0])

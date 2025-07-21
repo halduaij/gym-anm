@@ -226,3 +226,55 @@ class LaggingCapBankExpert(CapBankExpert):
                 q = 0.0
             action[base + idx] = q
         return action
+
+
+class OperatorLogExpert(CapBankExpert):
+    """Heuristic mimicking manual operator actions.
+
+    The expert applies a simple schedule of capacitor bank switches while also
+    reacting to voltage deviations with measurement noise.  This is intended to
+    emulate the kind of sub-optimal behaviour that may be found in operator
+    logs.
+
+    Parameters
+    ----------
+    env : :class:`~gymnasium.Env`
+        Environment used to infer device characteristics.
+    schedule : sequence of int, optional
+        Timesteps at which all capacitor banks are switched to their maximum
+        reactive power output, regardless of measurements.
+    noise_std : float, default 0.002
+        Standard deviation of the Gaussian noise added to voltage readings.
+    """
+
+    def __init__(
+        self,
+        env: IEEE33Env,
+        schedule: Optional[Sequence[int]] = None,
+        noise_std: float = 0.002,
+    ):
+        super().__init__(env)
+        self.schedule = set(schedule or [])
+        self.noise_std = noise_std
+        self._step = 0
+
+    def act(self, env: IEEE33Env):
+        action = np.zeros(env.action_space.shape[0])
+        sim = env.unwrapped.simulator
+        base = 0
+        for idx, dev_id in enumerate(self.cap_ids):
+            dev = sim.devices[dev_id]
+            if self._step in self.schedule:
+                q = dev.q_max * sim.baseMVA
+            else:
+                bus_v = np.abs(sim.buses[dev.bus_id].v)
+                bus_v += np.random.normal(0.0, self.noise_std)
+                if bus_v < self.v_min:
+                    q = dev.q_max * sim.baseMVA
+                elif bus_v > self.v_max:
+                    q = dev.q_min * sim.baseMVA
+                else:
+                    q = 0.0
+            action[base + idx] = q
+        self._step += 1
+        return action
