@@ -3,9 +3,14 @@ import numpy as np
 from gym_anm import (
     IEEE33Env,
     generate_dataset,
+    generate_mixed_dataset,
     behavior_cloning,
     evaluate_policy,
     SimpleCapBankExpert,
+    ConservativeCapBankExpert,
+    AggressiveCapBankExpert,
+    NoisyCapBankExpert,
+    DelayedCapBankExpert,
 )
 
 
@@ -24,3 +29,20 @@ def test_offline_rl_basic():
     exp_perf = evaluate_policy(env, exp_policy, episodes=1, max_steps=2)
 
     assert exp_perf >= rand_perf
+
+
+def test_mixed_dataset_generation():
+
+    env = IEEE33Env()
+    agents = [
+        None,
+        SimpleCapBankExpert(env),
+        ConservativeCapBankExpert(env),
+        AggressiveCapBankExpert(env),
+        NoisyCapBankExpert(env),
+        DelayedCapBankExpert(env),
+    ]
+
+    states, actions = generate_mixed_dataset(env, agents, 5)
+
+    assert states.shape[0] == actions.shape[0] == 5

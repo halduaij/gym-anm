@@ -92,6 +92,7 @@ comes with its own rendering tool:
     :caption: Advanced
 
     topics/mpc
+    topics/offline_training
 
 .. toctree::
     :maxdepth: 2
