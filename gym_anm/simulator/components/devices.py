@@ -83,7 +83,7 @@ class Device(object):
             self.bus_id = int(self.bus_id)
 
         self.type = dev_spec[DEV_H["DEV_TYPE"]]
-        allowed = [-1, 0, 1, 2, 3]
+        allowed = [-1, 0, 1, 2, 3, 4]
         if self.type is None or self.type not in allowed:
             raise DeviceSpecError("The DEV_TYPE value for device %d should be" " in %s." % allowed)
 
@@ -543,3 +543,39 @@ class StorageUnit(Device):
 
         # Clip the new state of charge to be in [soc_min, soc_max].
         self.soc = np.clip(self.soc, self.soc_min, self.soc_max)
+
+
+class CapacitorBank(Device):
+    """A controllable shunt capacitor bank."""
+
+    def __init__(self, dev_spec, bus_ids, baseMVA):
+        super().__init__(dev_spec, bus_ids, baseMVA)
+
+    def _check_type_specific_specs(self, dev_spec, baseMVA):
+        if self.type != 4:
+            raise DeviceSpecError(
+                "Trying to create a CapacitorBank object for a device that has DEV_TYPE != 4."
+            )
+
+        self.p_max = 0.0
+        self.p_min = 0.0
+
+        self.q_max = dev_spec[DEV_H["QMAX"]]
+        if self.q_max is None:
+            self.q_max = 0.0
+        else:
+            self.q_max /= baseMVA
+
+        self.q_min = dev_spec[DEV_H["QMIN"]]
+        if self.q_min is None:
+            self.q_min = 0.0
+        else:
+            self.q_min /= baseMVA
+
+        self.q_plus = self.q_max
+        self.q_minus = self.q_min
+
+    def map_q(self, q):
+        """Map q to the closest feasible reactive power injection."""
+        self.p = 0.0
+        self.q = np.clip(q, self.q_min, self.q_max)
