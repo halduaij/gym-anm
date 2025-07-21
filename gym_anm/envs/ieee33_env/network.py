@@ -74,12 +74,6 @@ for row in bus_rows[1:]:
     device.append([dev_id, bus_id, -1, qp, 0, -Pd, None, None, None, None, None, None, None, None, None])
     dev_id += 1
 
-# Add a couple of controllable capacitor banks for voltage regulation
-device.append([dev_id, 8, 4, None, 0, 0, 1.0, -1.0, None, None, None, None, None, None, None])
-dev_id += 1
-device.append([dev_id, 25, 4, None, 0, 0, 1.0, -1.0, None, None, None, None, None, None, None])
-dev_id += 1
-
 network = {"baseMVA": baseMVA}
 network["bus"] = np.array(bus, dtype=float)
 network["device"] = np.array(device, dtype=object)

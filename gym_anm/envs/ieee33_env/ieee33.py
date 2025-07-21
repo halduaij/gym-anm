@@ -28,10 +28,7 @@ class IEEE33Env(ANMEnv):
             if dev.is_slack:
                 continue
             p = dev.p_min
-            if hasattr(dev, "qp_ratio") and dev.qp_ratio is not None:
-                q = p * dev.qp_ratio
-            else:
-                q = 0.0
+            q = p * dev.qp_ratio
             state[dev_id] = p
             state[n_dev + dev_id] = q
         return state

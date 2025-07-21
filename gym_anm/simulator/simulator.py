@@ -281,9 +281,6 @@ class Simulator(object):
                     P_pot[dev_id] = P_max[gen_idx]
                     gen_idx += 1
 
-            elif isinstance(dev, CapacitorBank):
-                Q_set_points[dev_id] = Q_dev[idx]
-
         # 2. Set the initial SoC of each DES unit to either empty or full, so
         # that the corresponding power injection (given in `init_state`) will
         # be made possible by the simulator during the `transition` call.
