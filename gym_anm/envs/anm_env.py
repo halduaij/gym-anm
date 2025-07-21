@@ -13,7 +13,7 @@ from ..simulator import Simulator
 from ..errors import ObsSpaceError, ObsNotSupportedError, EnvInitializationError, EnvNextVarsError
 from .utils import check_env_args
 from ..simulator.components.constants import STATE_VARIABLES
-from ..simulator.components import StorageUnit, Generator, Load
+from ..simulator.components import StorageUnit, Generator, Load, CapacitorBank
 
 
 logger = getLogger(__file__)
@@ -397,8 +397,10 @@ class ANMEnv(gym.Env):
             i for i, dev in self.simulator.devices.items() if isinstance(dev, Generator) and not dev.is_slack
         ]
         des_ids = [i for i, dev in self.simulator.devices.items() if isinstance(dev, StorageUnit)]
+        cap_ids = [i for i, dev in self.simulator.devices.items() if isinstance(dev, CapacitorBank)]
         N_gen = len(gen_non_slack_ids)
         N_des = len(des_ids)
+        N_cap = len(cap_ids)
 
         for a, dev_id in zip(action[:N_gen], gen_non_slack_ids):
             P_set_points[dev_id] = a
@@ -406,7 +408,11 @@ class ANMEnv(gym.Env):
             Q_set_points[dev_id] = a
         for a, dev_id in zip(action[2 * N_gen : 2 * N_gen + N_des], des_ids):
             P_set_points[dev_id] = a
-        for a, dev_id in zip(action[2 * N_gen + N_des :], des_ids):
+        base = 2 * N_gen + N_des
+        for a, dev_id in zip(action[base : base + N_des], des_ids):
+            Q_set_points[dev_id] = a
+        base = base + N_des
+        for a, dev_id in zip(action[base : base + N_cap], cap_ids):
             Q_set_points[dev_id] = a
 
         # 3a. Apply the action in the simulator.
@@ -482,10 +488,12 @@ class ANMEnv(gym.Env):
             The action space of the environment.
         """
 
-        P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds = self.simulator.get_action_space()
+        bounds = self.simulator.get_action_space()
+        P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds = bounds[:4]
+        Q_cap_bounds = bounds[4] if len(bounds) > 4 else {}
 
         lower_bounds, upper_bounds = [], []
-        for x in [P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds]:
+        for x in [P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds, Q_cap_bounds]:
             for dev_id in sorted(x.keys()):
                 lower_bounds.append(x[dev_id][0])
                 upper_bounds.append(x[dev_id][1])
