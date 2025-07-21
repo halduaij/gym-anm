@@ -11,6 +11,7 @@ from gym_anm import (
     AggressiveCapBankExpert,
     NoisyCapBankExpert,
     DelayedCapBankExpert,
+    LaggingCapBankExpert,
 )
 
 
@@ -41,8 +42,29 @@ def test_mixed_dataset_generation():
         AggressiveCapBankExpert(env),
         NoisyCapBankExpert(env),
         DelayedCapBankExpert(env),
+        LaggingCapBankExpert(env),
     ]
 
     states, actions = generate_mixed_dataset(env, agents, 5)
 
     assert states.shape[0] == actions.shape[0] == 5
+
+
+def test_mixed_dataset_weights():
+
+    env = IEEE33Env()
+    expert = SimpleCapBankExpert(env)
+    others = [AggressiveCapBankExpert(env)]
+
+    env.reset(seed=42)
+    states_a, actions_a = generate_dataset(env, expert, 3)
+
+    env.reset(seed=42)
+    states_b, actions_b = generate_mixed_dataset(
+        env,
+        [expert] + others,
+        3,
+        weights=[1.0, 0.0],
+    )
+
+    np.testing.assert_allclose(actions_a, actions_b)

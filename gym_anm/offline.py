@@ -23,7 +23,9 @@ def generate_dataset(env, agent: Optional[Callable], steps: int):
     return np.array(states), np.array(actions)
 
 
-def generate_mixed_dataset(env, agents: Sequence[Optional[Callable]], steps: int):
+def generate_mixed_dataset(
+    env, agents: Sequence[Optional[Callable]], steps: int, weights: Optional[Sequence[float]] = None
+):
     """Collect a dataset from a mixture of agents.
 
     Parameters
@@ -35,6 +37,9 @@ def generate_mixed_dataset(env, agents: Sequence[Optional[Callable]], steps: int
         action is sampled.
     steps : int
         Number of environment steps to record.
+    weights : sequence of float, optional
+        Selection probabilities for each agent. If omitted agents are chosen
+        uniformly at random.
 
     Returns
     -------
@@ -46,8 +51,19 @@ def generate_mixed_dataset(env, agents: Sequence[Optional[Callable]], steps: int
 
     states, actions = [], []
     obs, _ = env.reset()
+
+    if weights is not None:
+        w = np.asarray(weights, dtype=float)
+        if w.shape[0] != len(agents):
+            raise ValueError("Length of weights must match number of agents")
+        w = w / w.sum()
+
     for _ in range(steps):
-        agent = np.random.choice(agents)
+        if weights is None:
+            idx = np.random.randint(len(agents))
+        else:
+            idx = int(np.random.choice(len(agents), p=w))
+        agent = agents[idx]
         if agent is None:
             action = env.action_space.sample()
         else:
@@ -177,3 +193,36 @@ class DelayedCapBankExpert(CapBankExpert):
             return np.zeros(env.action_space.shape[0])
         self._counter += 1
         return super().act(env)
+
+
+class LaggingCapBankExpert(CapBankExpert):
+    """Expert using voltage measurements from ``lag`` steps ago."""
+
+    def __init__(self, env: IEEE33Env, lag: int = 1):
+        super().__init__(env)
+        self.lag = max(1, lag)
+        self._history = []
+
+    def act(self, env: IEEE33Env):
+        sim = env.unwrapped.simulator
+        current_vs = [np.abs(sim.buses[sim.devices[dev_id].bus_id].v) for dev_id in self.cap_ids]
+        self._history.append(current_vs)
+        if len(self._history) <= self.lag:
+            used_vs = current_vs
+        else:
+            used_vs = self._history[-self.lag - 1]
+            self._history = self._history[-self.lag - 1 :]
+
+        action = np.zeros(env.action_space.shape[0])
+        base = 0
+        for idx, dev_id in enumerate(self.cap_ids):
+            dev = sim.devices[dev_id]
+            bus_v = used_vs[idx]
+            if bus_v < self.v_min:
+                q = dev.q_max * sim.baseMVA
+            elif bus_v > self.v_max:
+                q = dev.q_min * sim.baseMVA
+            else:
+                q = 0.0
+            action[base + idx] = q
+        return action
