@@ -8,6 +8,7 @@ from gym_anm import (
     NoisyCapBankExpert,
     DelayedCapBankExpert,
     LaggingCapBankExpert,
+    OperatorLogExpert,
 )
 
 # BEGIN OFFLINE MIXED EXAMPLE
@@ -18,8 +19,9 @@ expert3 = AggressiveCapBankExpert(env)
 expert4 = NoisyCapBankExpert(env)
 expert5 = DelayedCapBankExpert(env)
 expert6 = LaggingCapBankExpert(env)
-agents = [None, expert1, expert2, expert3, expert4, expert5, expert6]
+expert7 = OperatorLogExpert(env, schedule=[5])
+agents = [None, expert1, expert2, expert3, expert4, expert5, expert6, expert7]
 
-weights = [0.2, 0.2, 0.1, 0.1, 0.1, 0.2, 0.1]
+weights = [0.2, 0.2, 0.1, 0.1, 0.1, 0.2, 0.05, 0.15]
 states, actions = generate_mixed_dataset(env, agents, steps=10, weights=weights)
 # END OFFLINE MIXED EXAMPLE

@@ -17,8 +17,10 @@ resulting transition.
 Several simple experts are provided.  In addition to conservative and
 aggressive variants, ``NoisyCapBankExpert`` simulates measurement errors while
 ``DelayedCapBankExpert`` acts only every few steps.  ``LaggingCapBankExpert``
-makes decisions based on past voltage measurements.  These allow generating
-more realistic sub-optimal behaviour.
+makes decisions based on past voltage measurements.  ``OperatorLogExpert``
+combines a coarse switching schedule with noisy measurements to emulate
+handcrafted operator logs.  These allow generating more realistic sub-optimal
+behaviour.
 
 .. literalinclude:: ../../../examples/offline_mixed.py
    :language: python
