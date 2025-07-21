@@ -110,11 +110,7 @@ class CapBankExpert:
         self.env = env
         self.v_min = v_min
         self.v_max = v_max
-        self.cap_ids = [
-            i
-            for i, d in env.unwrapped.simulator.devices.items()
-            if isinstance(d, CapacitorBank)
-        ]
+        self.cap_ids = [i for i, d in env.unwrapped.simulator.devices.items() if isinstance(d, CapacitorBank)]
 
     def act(self, env: IEEE33Env):
         action = np.zeros(env.action_space.shape[0])
@@ -225,4 +221,35 @@ class LaggingCapBankExpert(CapBankExpert):
             else:
                 q = 0.0
             action[base + idx] = q
+        return action
+
+
+class HysteresisCapBankExpert(CapBankExpert):
+    """Expert that changes action only when voltages exit a wider band.
+
+    This mimics human operators who avoid frequent switching by using
+    separate thresholds for turning capacitors on and off.
+    """
+
+    def __init__(self, env: IEEE33Env, v_on: float = 0.985, v_off: float = 1.015):
+        super().__init__(env)
+        self.v_on = v_on
+        self.v_off = v_off
+        self._current = np.zeros(env.action_space.shape[0])
+
+    def act(self, env: IEEE33Env):
+        action = self._current.copy()
+        sim = env.unwrapped.simulator
+        base = 0
+        for idx, dev_id in enumerate(self.cap_ids):
+            dev = sim.devices[dev_id]
+            bus_v = np.abs(sim.buses[dev.bus_id].v)
+            if bus_v < self.v_on:
+                q = dev.q_max * sim.baseMVA
+            elif bus_v > self.v_off:
+                q = dev.q_min * sim.baseMVA
+            else:
+                q = self._current[idx]
+            action[base + idx] = q
+        self._current = action
         return action
