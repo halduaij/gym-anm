@@ -10,12 +10,14 @@ Generating datasets
 -------------------
 
 Datasets can be created from a mix of agents with different levels of
-expertise.  The function :func:`generate_mixed_dataset` randomly selects an
-agent from a given list at each step and records the resulting transition.
+expertise.  The function :func:`generate_mixed_dataset` selects an agent at
+every step (optionally according to given probabilities) and records the
+resulting transition.
 
 Several simple experts are provided.  In addition to conservative and
 aggressive variants, ``NoisyCapBankExpert`` simulates measurement errors while
-``DelayedCapBankExpert`` acts only every few steps.  These allow generating
+``DelayedCapBankExpert`` acts only every few steps.  ``LaggingCapBankExpert``
+makes decisions based on past voltage measurements.  These allow generating
 more realistic sub-optimal behaviour.
 
 .. literalinclude:: ../../../examples/offline_mixed.py
