@@ -12,6 +12,7 @@ from gym_anm import (
     NoisyCapBankExpert,
     DelayedCapBankExpert,
     LaggingCapBankExpert,
+    HysteresisCapBankExpert,
 )
 
 
@@ -24,7 +25,6 @@ def test_offline_rl_basic():
 
     rand_policy = behavior_cloning(rand_states, rand_actions, env.action_space)
     exp_policy = behavior_cloning(exp_states, exp_actions, env.action_space)
-
 
     rand_perf = evaluate_policy(env, rand_policy, episodes=1, max_steps=2)
     exp_perf = evaluate_policy(env, exp_policy, episodes=1, max_steps=2)
@@ -68,3 +68,10 @@ def test_mixed_dataset_weights():
     )
 
     np.testing.assert_allclose(actions_a, actions_b)
+
+
+def test_hysteresis_expert_dataset():
+    env = IEEE33Env()
+    expert = HysteresisCapBankExpert(env)
+    states, actions = generate_dataset(env, expert, 3)
+    assert states.shape[0] == actions.shape[0] == 3

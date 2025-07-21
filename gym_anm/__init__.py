@@ -16,6 +16,7 @@ from .offline import (
     NoisyCapBankExpert,
     DelayedCapBankExpert,
     LaggingCapBankExpert,
+    HysteresisCapBankExpert,
 )
 
 register(
