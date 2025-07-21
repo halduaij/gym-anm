@@ -111,21 +111,18 @@ class CapBankExpert:
         self.v_min = v_min
         self.v_max = v_max
         self.cap_ids = [i for i, d in env.unwrapped.simulator.devices.items() if isinstance(d, CapacitorBank)]
+        self.oltc_ids = [i for i, d in env.unwrapped.simulator.devices.items() if hasattr(d, "t_bus")]
 
     def act(self, env: IEEE33Env):
         action = np.zeros(env.action_space.shape[0])
-        sim = env.unwrapped.simulator
         base = 0
-        for idx, dev_id in enumerate(self.cap_ids):
-            dev = sim.devices[dev_id]
-            bus_v = np.abs(sim.buses[dev.bus_id].v)
-            if bus_v < self.v_min:
-                q = dev.q_max * sim.baseMVA
-            elif bus_v > self.v_max:
-                q = dev.q_min * sim.baseMVA
-            else:
-                q = 0.0
-            action[base + idx] = q
+        for idx in range(len(self.cap_ids)):
+            action[base + idx] = 0.0
+
+        base += len(self.cap_ids)
+        for idx in range(len(self.oltc_ids)):
+            action[base + idx] = 1.0
+
         return action
 
 
@@ -158,7 +155,7 @@ class NoisyCapBankExpert(CapBankExpert):
         self.noise_std = noise_std
 
     def act(self, env: IEEE33Env):
-        action = np.zeros(env.action_space.shape[0])
+        action = CapBankExpert.act(self, env)
         sim = env.unwrapped.simulator
         base = 0
         for idx, dev_id in enumerate(self.cap_ids):
@@ -186,9 +183,9 @@ class DelayedCapBankExpert(CapBankExpert):
     def act(self, env: IEEE33Env):
         if self._counter % self.delay != 0:
             self._counter += 1
-            return np.zeros(env.action_space.shape[0])
+            return CapBankExpert.act(self, env)
         self._counter += 1
-        return super().act(env)
+        return CapBankExpert.act(self, env)
 
 
 class LaggingCapBankExpert(CapBankExpert):
@@ -209,7 +206,7 @@ class LaggingCapBankExpert(CapBankExpert):
             used_vs = self._history[-self.lag - 1]
             self._history = self._history[-self.lag - 1 :]
 
-        action = np.zeros(env.action_space.shape[0])
+        action = CapBankExpert.act(self, env)
         base = 0
         for idx, dev_id in enumerate(self.cap_ids):
             dev = sim.devices[dev_id]
@@ -238,7 +235,8 @@ class HysteresisCapBankExpert(CapBankExpert):
         self._current = np.zeros(env.action_space.shape[0])
 
     def act(self, env: IEEE33Env):
-        action = self._current.copy()
+        action = CapBankExpert.act(self, env)
+        self._current = action.copy()
         sim = env.unwrapped.simulator
         base = 0
         for idx, dev_id in enumerate(self.cap_ids):
@@ -251,5 +249,5 @@ class HysteresisCapBankExpert(CapBankExpert):
             else:
                 q = self._current[idx]
             action[base + idx] = q
-        self._current = action
+        self._current[: len(self.cap_ids)] = action[: len(self.cap_ids)]
         return action

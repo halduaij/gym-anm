@@ -13,6 +13,7 @@ from .components import (
     Bus,
     Generator,
     CapacitorBank,
+    OLTC,
 )
 from .components.constants import DEV_H
 from . import check_network
@@ -183,6 +184,11 @@ class Simulator(object):
                 from .components.devices import CapacitorBank
 
                 dev = CapacitorBank(dev_spec, bus_ids, baseMVA)
+
+            elif dev_type == 5:
+                from .components.devices import OLTC
+
+                dev = OLTC(dev_spec, bus_ids, baseMVA)
 
             else:
                 raise NotImplementedError
@@ -386,6 +392,7 @@ class Simulator(object):
         P_gen_bounds, Q_gen_bounds = {}, {}
         P_des_bounds, Q_des_bounds = {}, {}
         Q_cap_bounds = {}
+        tap_bounds = {}
         for dev_id, dev in self.devices.items():
             if isinstance(dev, Generator) and not dev.is_slack:
                 P_gen_bounds[dev_id] = (dev.p_min * self.baseMVA, dev.p_max * self.baseMVA)
@@ -398,8 +405,18 @@ class Simulator(object):
             elif isinstance(dev, CapacitorBank):
                 Q_cap_bounds[dev_id] = (dev.q_min * self.baseMVA, dev.q_max * self.baseMVA)
 
-        if Q_cap_bounds:
-            return P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds, Q_cap_bounds
+            elif isinstance(dev, OLTC):
+                tap_bounds[dev_id] = (dev.tap_min, dev.tap_max)
+
+        if Q_cap_bounds or tap_bounds:
+            return (
+                P_gen_bounds,
+                Q_gen_bounds,
+                P_des_bounds,
+                Q_des_bounds,
+                Q_cap_bounds,
+                tap_bounds,
+            )
         return P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds
 
     def get_state_space(self):
@@ -484,7 +501,7 @@ class Simulator(object):
 
         return specs
 
-    def transition(self, P_load, P_potential, P_set_points, Q_set_points):
+    def transition(self, P_load, P_potential, P_set_points, Q_set_points, tap_set_points=None):
         """
         Simulate a transition of the system from time :math:`t` to time :math:`t+1`.
 
@@ -523,6 +540,9 @@ class Simulator(object):
             that the network has collapsed (e.g., voltage collapse).
         """
 
+        if tap_set_points is None:
+            tap_set_points = {}
+
         for dev_id, dev in self.devices.items():
 
             # 1. Compute the (P, Q) injection point of each load.
@@ -547,10 +567,22 @@ class Simulator(object):
             elif isinstance(dev, CapacitorBank):
                 dev.map_q(Q_set_points[dev_id] / self.baseMVA)
 
+            elif isinstance(dev, OLTC):
+                tap = tap_set_points.get(dev_id, dev.tap)
+                dev.map_tap(tap)
+                # Update corresponding branch tap
+                br = self.branches[(dev.bus_id, dev.t_bus)]
+                br.tap_magn = dev.tap
+                br.tap = br.tap_magn * np.exp(1.0j * br.shift)
+
             # 4a. Initialize the (P, Q) injection point of the slack bus device to 0.
             elif dev.is_slack:
                 dev.p = 0.0
                 dev.q = 0.0
+
+        # Rebuild admittance matrix if any OLTC was updated
+        if tap_set_points:
+            self.Y_bus = self._build_admittance_matrix()
 
         # 4b. Compute the total (P, Q) injection at each bus.
         self._get_bus_total_injections()

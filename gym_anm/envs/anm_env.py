@@ -13,7 +13,7 @@ from ..simulator import Simulator
 from ..errors import ObsSpaceError, ObsNotSupportedError, EnvInitializationError, EnvNextVarsError
 from .utils import check_env_args
 from ..simulator.components.constants import STATE_VARIABLES
-from ..simulator.components import StorageUnit, Generator, Load, CapacitorBank
+from ..simulator.components import StorageUnit, Generator, Load, CapacitorBank, OLTC
 
 
 logger = getLogger(__file__)
@@ -398,9 +398,11 @@ class ANMEnv(gym.Env):
         ]
         des_ids = [i for i, dev in self.simulator.devices.items() if isinstance(dev, StorageUnit)]
         cap_ids = [i for i, dev in self.simulator.devices.items() if isinstance(dev, CapacitorBank)]
+        oltc_ids = [i for i, dev in self.simulator.devices.items() if isinstance(dev, OLTC)]
         N_gen = len(gen_non_slack_ids)
         N_des = len(des_ids)
         N_cap = len(cap_ids)
+        N_oltc = len(oltc_ids)
 
         for a, dev_id in zip(action[:N_gen], gen_non_slack_ids):
             P_set_points[dev_id] = a
@@ -414,12 +416,20 @@ class ANMEnv(gym.Env):
         base = base + N_des
         for a, dev_id in zip(action[base : base + N_cap], cap_ids):
             Q_set_points[dev_id] = a
+        base = base + N_cap
+        tap_set_points = {}
+        for a, dev_id in zip(action[base : base + N_oltc], oltc_ids):
+            tap_set_points[dev_id] = a
 
         # 3a. Apply the action in the simulator.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", MatrixRankWarning)
             _, r, e_loss, penalty, pfe_converged = self.simulator.transition(
-                P_load_dict, P_pot_dict, P_set_points, Q_set_points
+                P_load_dict,
+                P_pot_dict,
+                P_set_points,
+                Q_set_points,
+                tap_set_points,
             )
 
             # A terminal state has been reached if no solution to the power
@@ -491,9 +501,10 @@ class ANMEnv(gym.Env):
         bounds = self.simulator.get_action_space()
         P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds = bounds[:4]
         Q_cap_bounds = bounds[4] if len(bounds) > 4 else {}
+        tap_bounds = bounds[5] if len(bounds) > 5 else {}
 
         lower_bounds, upper_bounds = [], []
-        for x in [P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds, Q_cap_bounds]:
+        for x in [P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds, Q_cap_bounds, tap_bounds]:
             for dev_id in sorted(x.keys()):
                 lower_bounds.append(x[dev_id][0])
                 upper_bounds.append(x[dev_id][1])
