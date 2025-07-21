@@ -5,7 +5,17 @@ from gymnasium.envs.registration import register
 from .agents import MPCAgentPerfect, MPCAgentConstant
 from .envs import ANMEnv
 from .envs.ieee33_env import IEEE33Env
-from .offline import generate_dataset, behavior_cloning, evaluate_policy, SimpleCapBankExpert
+from .offline import (
+    generate_dataset,
+    generate_mixed_dataset,
+    behavior_cloning,
+    evaluate_policy,
+    SimpleCapBankExpert,
+    ConservativeCapBankExpert,
+    AggressiveCapBankExpert,
+    NoisyCapBankExpert,
+    DelayedCapBankExpert,
+)
 
 register(
     id="ANM6Easy-v0",
