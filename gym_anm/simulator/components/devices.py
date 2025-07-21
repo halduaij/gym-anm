@@ -83,9 +83,11 @@ class Device(object):
             self.bus_id = int(self.bus_id)
 
         self.type = dev_spec[DEV_H["DEV_TYPE"]]
-        allowed = [-1, 0, 1, 2, 3, 4]
+        allowed = [-1, 0, 1, 2, 3, 4, 5]
         if self.type is None or self.type not in allowed:
-            raise DeviceSpecError("The DEV_TYPE value for device %d should be" " in %s." % allowed)
+            raise DeviceSpecError(
+                "The DEV_TYPE value for device %d should be in %s." % (self.dev_id, allowed)
+            )
 
         if self.type == 0:
             self.is_slack = True
@@ -579,3 +581,46 @@ class CapacitorBank(Device):
         """Map q to the closest feasible reactive power injection."""
         self.p = 0.0
         self.q = np.clip(q, self.q_min, self.q_max)
+
+
+class OLTC(Device):
+    """A controllable on-load tap changer."""
+
+    def __init__(self, dev_spec, bus_ids, baseMVA):
+        super().__init__(dev_spec, bus_ids, baseMVA)
+
+    def _check_type_specific_specs(self, dev_spec, baseMVA):
+        if self.type != 5:
+            raise DeviceSpecError(
+                "Trying to create an OLTC object for a device that has DEV_TYPE != 5."
+            )
+
+        self.t_bus = int(dev_spec[DEV_H["Q/P"]])
+        self.tap_max = dev_spec[DEV_H["PMAX"]]
+        if self.tap_max is None:
+            self.tap_max = 1.0
+
+        self.tap_min = dev_spec[DEV_H["PMIN"]]
+        if self.tap_min is None:
+            self.tap_min = 1.0
+
+        if self.tap_max < self.tap_min:
+            raise DeviceSpecError("Device %d has TAP_MAX < TAP_MIN." % self.dev_id)
+
+        self.p_max = 0.0
+        self.p_min = 0.0
+        self.q_max = 0.0
+        self.q_min = 0.0
+
+        self.p_plus = 0.0
+        self.p_minus = 0.0
+        self.q_plus = 0.0
+        self.q_minus = 0.0
+
+        self.tap = 1.0
+
+    def map_tap(self, tap):
+        """Map tap ratio to feasible value."""
+        self.p = 0.0
+        self.q = 0.0
+        self.tap = np.clip(tap, self.tap_min, self.tap_max)

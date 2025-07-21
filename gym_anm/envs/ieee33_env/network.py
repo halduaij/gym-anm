@@ -80,6 +80,10 @@ dev_id += 1
 device.append([dev_id, 25, 4, None, 0, 0, 1.0, -1.0, None, None, None, None, None, None, None])
 dev_id += 1
 
+# Add an OLTC on the slack branch between bus 0 and bus 1
+device.append([dev_id, 0, 5, 1, 1.1, 0.9, None, None, None, None, None, None, None, None, None])
+dev_id += 1
+
 network = {"baseMVA": baseMVA}
 network["bus"] = np.array(bus, dtype=float)
 network["device"] = np.array(device, dtype=object)

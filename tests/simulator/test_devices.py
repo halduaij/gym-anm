@@ -22,7 +22,7 @@ class TestDevice(unittest.TestCase):
                 Device(spec, self.bus_ids, self.baseMVA)
 
     def test_bad_type(self):
-        for t in [None, -3, -2, 4, 5]:
+        for t in [None, -3, -2, 6]:
             spec = np.array([2, 3, t, None, None, None, None, None, None, None, None, None, None, None, None])
             with self.assertRaises(DeviceSpecError):
                 Device(spec, self.bus_ids, self.baseMVA)
