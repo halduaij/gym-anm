@@ -4,7 +4,16 @@ import copy
 from scipy.sparse import csc_matrix
 from logging import getLogger
 
-from .components import Load, TransmissionLine, ClassicalGen, StorageUnit, RenewableGen, Bus, Generator
+from .components import (
+    Load,
+    TransmissionLine,
+    ClassicalGen,
+    StorageUnit,
+    RenewableGen,
+    Bus,
+    Generator,
+    CapacitorBank,
+)
 from .components.constants import DEV_H
 from . import check_network
 from . import solve_load_flow
@@ -170,6 +179,11 @@ class Simulator(object):
             elif dev_type == 3:
                 dev = StorageUnit(dev_spec, bus_ids, baseMVA)
 
+            elif dev_type == 4:
+                from .components.devices import CapacitorBank
+
+                dev = CapacitorBank(dev_spec, bus_ids, baseMVA)
+
             else:
                 raise NotImplementedError
 
@@ -266,6 +280,9 @@ class Simulator(object):
                 if isinstance(dev, Generator) and not dev.is_slack:
                     P_pot[dev_id] = P_max[gen_idx]
                     gen_idx += 1
+
+            elif isinstance(dev, CapacitorBank):
+                Q_set_points[dev_id] = Q_dev[idx]
 
         # 2. Set the initial SoC of each DES unit to either empty or full, so
         # that the corresponding power injection (given in `init_state`) will
@@ -368,6 +385,7 @@ class Simulator(object):
 
         P_gen_bounds, Q_gen_bounds = {}, {}
         P_des_bounds, Q_des_bounds = {}, {}
+        Q_cap_bounds = {}
         for dev_id, dev in self.devices.items():
             if isinstance(dev, Generator) and not dev.is_slack:
                 P_gen_bounds[dev_id] = (dev.p_min * self.baseMVA, dev.p_max * self.baseMVA)
@@ -377,6 +395,11 @@ class Simulator(object):
                 P_des_bounds[dev_id] = (dev.p_min * self.baseMVA, dev.p_max * self.baseMVA)
                 Q_des_bounds[dev_id] = (dev.q_min * self.baseMVA, dev.q_max * self.baseMVA)
 
+            elif isinstance(dev, CapacitorBank):
+                Q_cap_bounds[dev_id] = (dev.q_min * self.baseMVA, dev.q_max * self.baseMVA)
+
+        if Q_cap_bounds:
+            return P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds, Q_cap_bounds
         return P_gen_bounds, Q_gen_bounds, P_des_bounds, Q_des_bounds
 
     def get_state_space(self):
@@ -514,8 +537,15 @@ class Simulator(object):
             # 3. Compute the (P, Q) injection point of each DES unit and update the
             # new SoC.
             elif isinstance(dev, StorageUnit):
-                dev.map_pq(P_set_points[dev_id] / self.baseMVA, Q_set_points[dev_id] / self.baseMVA, self.delta_t)
+                dev.map_pq(
+                    P_set_points[dev_id] / self.baseMVA,
+                    Q_set_points[dev_id] / self.baseMVA,
+                    self.delta_t,
+                )
                 dev.update_soc(self.delta_t)
+
+            elif isinstance(dev, CapacitorBank):
+                dev.map_q(Q_set_points[dev_id] / self.baseMVA)
 
             # 4a. Initialize the (P, Q) injection point of the slack bus device to 0.
             elif dev.is_slack:
