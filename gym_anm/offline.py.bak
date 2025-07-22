@@ -1,7 +1,13 @@
 import numpy as np
 from typing import Optional, Callable, Sequence
 from .envs.ieee33_env import IEEE33Env
-from .simulator.components import CapacitorBank, OLTC, Generator, StorageUnit
+from .simulator.components import (
+    CapacitorBank,
+    Generator,
+    RenewableGen,
+    StorageUnit,
+    OLTC,
+)
 
 
 def generate_dataset(env, agent: Optional[Callable], steps: int):
@@ -113,55 +119,54 @@ class CapBankExpert:
         sim = env.unwrapped.simulator
         self.cap_ids = [i for i, d in sim.devices.items() if isinstance(d, CapacitorBank)]
         self.oltc_ids = [i for i, d in sim.devices.items() if isinstance(d, OLTC)]
-        self.ren_gen_ids = [
-            i for i, d in sim.devices.items() if isinstance(d, Generator) and d.type == 2 and not d.is_slack
+        self.rer_ids = [i for i, d in sim.devices.items() if isinstance(d, RenewableGen) and not d.is_slack]
+        self.gen_non_slack_ids = [
+            i for i, d in sim.devices.items() if isinstance(d, Generator) and not d.is_slack
         ]
-        self.des_ids = [i for i, d in sim.devices.items() if isinstance(d, StorageUnit)]
 
     def act(self, env: IEEE33Env):
         sim = env.unwrapped.simulator
-        gen_ids = [i for i, d in sim.devices.items() if isinstance(d, Generator) and not d.is_slack]
-        des_ids = [i for i, d in sim.devices.items() if isinstance(d, StorageUnit)]
-
-        cap_ids = self.cap_ids
-        oltc_ids = self.oltc_ids
-
-        N_gen = len(gen_ids)
-        N_des = len(des_ids)
-        N_cap = len(cap_ids)
         action = np.zeros(env.action_space.shape[0])
 
+        gen_ids = self.gen_non_slack_ids
+        N_gen = len(gen_ids)
+        N_des = len([i for i, d in sim.devices.items() if isinstance(d, StorageUnit)])
+
         base = 0
+        # Active power of non-slack generators
         for idx, dev_id in enumerate(gen_ids):
-            gen = sim.devices[dev_id]
-            if dev_id in self.ren_gen_ids:
-                v = abs(sim.buses[gen.bus_id].v)
-                if v > self.v_max:
-                    p = max(gen.p_min, 0.9 * gen.p_pot)
-                else:
-                    p = gen.p_pot
-                action[base + idx] = p * sim.baseMVA
+            dev = sim.devices[dev_id]
+            if dev_id in self.rer_ids:
+                action[base + idx] = dev.p_pot * sim.baseMVA
             else:
-                action[base + idx] = gen.p_pot * sim.baseMVA
+                action[base + idx] = 0.0
         base += N_gen
 
-        for idx in range(N_gen):
+        # Reactive power of non-slack generators
+        for idx, dev_id in enumerate(gen_ids):
             action[base + idx] = 0.0
         base += N_gen
 
-        for idx in range(N_des):
-            action[base + idx] = 0.0
-        base += N_des
-        for idx in range(N_des):
-            action[base + idx] = 0.0
-        base += N_des
+        # DES units (inactive by default)
+        base += N_des  # P
+        base += N_des  # Q
 
-        for idx, dev_id in enumerate(cap_ids):
+        # Capacitor banks
+        for idx in range(len(self.cap_ids)):
             action[base + idx] = 0.0
-        base += N_cap
+        base += len(self.cap_ids)
 
-        for idx, dev_id in enumerate(oltc_ids):
-            action[base + idx] = sim.devices[dev_id].tap
+        # OLTCs
+        for idx, dev_id in enumerate(self.oltc_ids):
+            dev = sim.devices[dev_id]
+            bus_v = np.abs(sim.buses[dev.t_bus].v)
+            if bus_v < self.v_min:
+                tap = dev.tap_max
+            elif bus_v > self.v_max:
+                tap = dev.tap_min
+            else:
+                tap = dev.tap
+            action[base + idx] = tap
 
         return action
 
@@ -197,7 +202,9 @@ class NoisyCapBankExpert(CapBankExpert):
     def act(self, env: IEEE33Env):
         action = CapBankExpert.act(self, env)
         sim = env.unwrapped.simulator
-        base = 0
+        N_gen = len(self.gen_non_slack_ids)
+        N_des = len([i for i, d in sim.devices.items() if isinstance(d, StorageUnit)])
+        base = 2 * N_gen + 2 * N_des
         for idx, dev_id in enumerate(self.cap_ids):
             dev = sim.devices[dev_id]
             bus_v = np.abs(sim.buses[dev.bus_id].v)
@@ -247,7 +254,9 @@ class LaggingCapBankExpert(CapBankExpert):
             self._history = self._history[-self.lag - 1 :]
 
         action = CapBankExpert.act(self, env)
-        base = 0
+        N_gen = len(self.gen_non_slack_ids)
+        N_des = len([i for i, d in sim.devices.items() if isinstance(d, StorageUnit)])
+        base = 2 * N_gen + 2 * N_des
         for idx, dev_id in enumerate(self.cap_ids):
             dev = sim.devices[dev_id]
             bus_v = used_vs[idx]
@@ -278,7 +287,9 @@ class HysteresisCapBankExpert(CapBankExpert):
         action = CapBankExpert.act(self, env)
         self._current = action.copy()
         sim = env.unwrapped.simulator
-        base = 0
+        N_gen = len(self.gen_non_slack_ids)
+        N_des = len([i for i, d in sim.devices.items() if isinstance(d, StorageUnit)])
+        base = 2 * N_gen + 2 * N_des
         for idx, dev_id in enumerate(self.cap_ids):
             dev = sim.devices[dev_id]
             bus_v = np.abs(sim.buses[dev.bus_id].v)
@@ -290,46 +301,4 @@ class HysteresisCapBankExpert(CapBankExpert):
                 q = self._current[idx]
             action[base + idx] = q
         self._current[: len(self.cap_ids)] = action[: len(self.cap_ids)]
-        return action
-
-
-class OLTCExpert(CapBankExpert):
-    """Heuristic agent for on-load tap changers."""
-
-    def act(self, env: IEEE33Env):
-        action = CapBankExpert.act(self, env)
-        sim = env.unwrapped.simulator
-        gen_ids = [i for i, d in sim.devices.items() if isinstance(d, Generator) and not d.is_slack]
-        des_ids = [i for i, d in sim.devices.items() if isinstance(d, StorageUnit)]
-        base = 2 * len(gen_ids) + 2 * len(des_ids) + len(self.cap_ids)
-        for idx, dev_id in enumerate(self.oltc_ids):
-            dev = sim.devices[dev_id]
-            v = np.abs(sim.buses[dev.t_bus].v)
-            if v < self.v_min:
-                tap = dev.tap_max
-            elif v > self.v_max:
-                tap = dev.tap_min
-            else:
-                tap = dev.tap
-            action[base + idx] = tap
-        return action
-
-
-class RenewableGenExpert(CapBankExpert):
-    """Heuristic agent controlling renewable generators."""
-
-    def act(self, env: IEEE33Env):
-        action = CapBankExpert.act(self, env)
-        sim = env.unwrapped.simulator
-        gen_ids = [i for i, d in sim.devices.items() if isinstance(d, Generator) and not d.is_slack]
-        base = 0
-        for idx, dev_id in enumerate(gen_ids):
-            gen = sim.devices[dev_id]
-            if dev_id in self.ren_gen_ids:
-                v = np.abs(sim.buses[gen.bus_id].v)
-                if v > self.v_max:
-                    p = max(gen.p_min, 0.9 * gen.p_pot)
-                else:
-                    p = gen.p_pot
-                action[base + idx] = p * sim.baseMVA
         return action
