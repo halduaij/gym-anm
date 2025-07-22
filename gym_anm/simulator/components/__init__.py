@@ -8,4 +8,5 @@ from .devices import (
     Generator,
     Device,
     CapacitorBank,
+    OLTC,
 )

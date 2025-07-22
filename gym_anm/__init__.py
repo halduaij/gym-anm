@@ -17,6 +17,8 @@ from .offline import (
     DelayedCapBankExpert,
     LaggingCapBankExpert,
     HysteresisCapBankExpert,
+    OLTCExpert,
+    RenewableGenExpert,
 )
 
 register(
