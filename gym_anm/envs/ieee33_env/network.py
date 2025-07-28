@@ -48,7 +48,7 @@ for row in bus_rows:
     else:
         bus_type = 1  # PQ bus
     base_kv = row[9]
-    bus.append([bus_id, bus_type, base_kv, 1.1, 0.9])
+    bus.append([bus_id, bus_type, base_kv, 1.05, 0.95])
 
 # Branch specification array
 branch = []

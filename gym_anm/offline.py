@@ -150,7 +150,9 @@ class BaseHeuristic:
         
         # Default: all OLTCs at nominal tap
         for idx, dev_id in enumerate(self.oltc_ids):
-            action[base + idx] = sim.devices[dev_id].tap
+            oltc = sim.devices[dev_id]
+            # Use nominal tap (1.0) as default
+            action[base + idx] = 1.0
         
         return action
 
