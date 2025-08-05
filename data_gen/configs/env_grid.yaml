@@ -1,0 +1,43 @@
+# Environment configurations for dataset diversity
+# Each entry creates a different environment variant
+
+- base_load: 1.0
+  params:
+    noise_std: 0.05
+    spike_prob: 0.05
+    spike_range: [0.2, 0.3]
+    drift_rate: 0.001
+    meas_noise: 0.005
+    action_delay_prob: 0.0
+    device_fail_prob: 0.0
+
+- base_load: 1.2
+  params:
+    noise_std: 0.1
+    spike_prob: 0.08
+    spike_range: [0.15, 0.25]
+    drift_rate: 0.002
+    meas_noise: 0.005
+    action_delay_prob: 0.05
+    device_fail_prob: 0.02
+
+- base_load: 1.5
+  params:
+    noise_std: 0.05
+    spike_prob: 0.1
+    spike_range: [0.2, 0.4]
+    drift_rate: 0.001
+    meas_noise: 0.01
+    action_delay_prob: 0.1
+    device_fail_prob: 0.05
+
+- base_load: 1.8
+  params:
+    noise_std: 0.15
+    spike_prob: 0.05
+    spike_range: [0.1, 0.2]
+    drift_rate: 0.003
+    meas_noise: 0.005
+    action_delay_prob: 0.15
+    max_delay: 5
+    device_fail_prob: 0.08

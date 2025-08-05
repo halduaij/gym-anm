@@ -1,0 +1,63 @@
+# Schema for enhanced environment configuration
+# This documents all available parameters
+
+environment:
+  type: object
+  properties:
+    base_load_scale:
+      type: number
+      minimum: 0.5
+      maximum: 2.5
+      description: Base scaling factor for all loads
+    
+    params:
+      type: object
+      properties:
+        noise_std:
+          type: number
+          minimum: 0.0
+          maximum: 0.3
+          description: Gaussian noise standard deviation (fraction of base load)
+        
+        spike_prob:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          description: Probability of load spike per timestep
+        
+        spike_range:
+          type: array
+          items: [number, number]
+          description: Range of spike magnitude [min, max]
+        
+        drift_rate:
+          type: number
+          minimum: 0.0
+          maximum: 0.01
+          description: Incremental drift standard deviation
+        
+        meas_noise:
+          type: number
+          minimum: 0.0
+          maximum: 0.02
+          description: Voltage measurement noise standard deviation
+        
+        action_delay_prob:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          description: Probability of action delay
+        
+        max_delay:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Maximum delay in timesteps
+        
+        device_fail_prob:
+          type: number
+          minimum: 0.0
+          maximum: 0.2
+          description: Probability of device failure at reset
+  
+  required: [base_load_scale]

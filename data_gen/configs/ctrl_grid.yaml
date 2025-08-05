@@ -1,0 +1,74 @@
+# Controller variant configurations
+# Each base controller can have multiple variants through parameter grids
+
+L1:
+  class_path: create_algorithmic_diversity.L1_BangBang
+  template:
+    noisy: false
+    delay: 0
+    sigma: 0.005
+    params: {}
+  grid:
+    v_threshold: [0.95, 0.96, 0.97]
+    noisy: [false, true]
+    delay: [0, 2]
+
+L2:
+  class_path: create_algorithmic_diversity.L2_Proportional
+  template:
+    noisy: false
+    delay: 0
+    sigma: 0.005
+    params: {}
+  grid:
+    kp_renewable: [5.0, 10.0, 15.0]
+    noisy: [false, true]
+    delay: [0, 1]
+
+L3:
+  class_path: create_algorithmic_diversity.L3_PI_Controller
+  template:
+    noisy: false
+    delay: 0
+    sigma: 0.005
+    params: {}
+  grid:
+    ki: [1.0, 2.0, 3.0]
+    noisy: [false]
+    delay: [0, 2, 4]
+
+L0:
+  class_path: create_algorithmic_diversity.L0_Random
+  template:
+    noisy: false
+    delay: 0
+    sigma: 0.005
+    params: {}
+  grid:
+    action_std: [0.1, 0.2, 0.3]
+    noisy: [false, true]
+    delay: [0, 1]
+
+L4:
+  class_path: create_algorithmic_diversity.L4_RuleBasedExpert
+  template:
+    noisy: false
+    delay: 0
+    sigma: 0.005
+    params: {}
+  grid:
+    trend_window: [3, 5, 10]
+    noisy: [false, true]
+    delay: [0, 2]
+
+L5:
+  class_path: create_algorithmic_diversity.L5_ScipyOptimal
+  template:
+    noisy: false
+    delay: 0
+    sigma: 0.005
+    params: {}
+  grid:
+    action_weight: [0.01, 0.1, 0.5]
+    noisy: [false, true]
+    delay: [0, 1]
