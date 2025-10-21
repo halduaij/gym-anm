@@ -24,25 +24,25 @@ def create_multi_capacitor_network():
         # Bus 6 - Near the beginning for upstream support
         {
             'bus': 6,
-            'q_max': 0.15,  # 1.5 MVAr
+            'q_max': 0.01875,  # 0.1875 MVAr (reduced from 1.5 by 1/8)
             'description': 'Upstream voltage support'
         },
         # Bus 12 - Middle of first lateral
         {
             'bus': 12,
-            'q_max': 0.10,  # 1.0 MVAr
+            'q_max': 0.0125,  # 0.125 MVAr (reduced from 1.0 by 1/8)
             'description': 'First lateral support'
         },
         # Bus 17 - End of main feeder before laterals
         {
             'bus': 17,
-            'q_max': 0.20,  # 2.0 MVAr
+            'q_max': 0.025,  # 0.25 MVAr (reduced from 2.0 by 1/8)
             'description': 'Main feeder end support'
         },
         # Bus 32 - End of system
         {
             'bus': 32,
-            'q_max': 0.15,  # 1.5 MVAr
+            'q_max': 0.01875,  # 0.1875 MVAr (reduced from 1.5 by 1/8)
             'description': 'System end support'
         }
     ]

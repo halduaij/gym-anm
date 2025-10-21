@@ -21,9 +21,10 @@ class IEEE33ProperEnvironment(IEEE33MultiCapacitorEnv):
     This is THE ONLY environment you should use.
     """
     
-    def __init__(self, load_scale=1.0):
+    def __init__(self, load_scale=1.0, curtailment_weight=40.0):
         super().__init__()
         self.load_scale = load_scale
+        self.curtailment_weight = curtailment_weight
         
         # Get load device IDs
         self._load_ids = []
@@ -39,18 +40,36 @@ class IEEE33ProperEnvironment(IEEE33MultiCapacitorEnv):
         print(f"  Total nominal load: {total_mw:.2f} MW")
         print(f"  Load scale factor: {load_scale}")
         print(f"  Effective load: {total_mw * load_scale:.2f} MW")
+        if curtailment_weight != 1.0:
+            print(f"  Renewable curtailment weight: {curtailment_weight}x")
     
     def next_vars(self, s_t):
-        """Return load values in MW (NEGATIVE)."""
+        """Return load and renewable potential values in MW."""
         n_vars = self.simulator.N_load + self.simulator.N_non_slack_gen + self.K
         vars = np.zeros(n_vars)
-        
+
+        # Set load values (negative for consumption)
         for idx, dev_id in enumerate(self._load_ids):
             if idx < self.simulator.N_load:
                 dev = self.simulator.devices[dev_id]
                 nominal_mw = abs(dev.p_min) * self.simulator.baseMVA
                 vars[idx] = -nominal_mw * self.load_scale
-        
+
+        # Set renewable potential values
+        # CRITICAL FIX: Must provide renewable potential or renewables can't generate!
+        # Using simple fixed values based on typical solar/wind profiles
+        from gym_anm.simulator.components import RenewableGen
+        gen_idx = 0
+        for dev_id, dev in self.simulator.devices.items():
+            if isinstance(dev, RenewableGen):
+                # Solar: devices 36, 37, 38 (0.05 MW each max)
+                # Wind: devices 39, 40 (0.10 MW each max)
+                if gen_idx < 3:  # Solar
+                    vars[self.simulator.N_load + gen_idx] = 0.05  # 50 kW solar potential
+                else:  # Wind
+                    vars[self.simulator.N_load + gen_idx] = 0.10  # 100 kW wind potential
+                gen_idx += 1
+
         return vars
     
     def reset(self, **kwargs):
@@ -70,6 +89,31 @@ class IEEE33ProperEnvironment(IEEE33MultiCapacitorEnv):
                 branch.rate = 0.2  # 2 MVA
                 
         return obs, info
+    
+    def step(self, action):
+        """Override step to apply curtailment weight if needed."""
+        # Get the base step result
+        obs, base_reward, terminated, truncated, info = super().step(action)
+        
+        # Only modify reward if curtailment weight is not 1.0
+        if self.curtailment_weight != 1.0:
+            # Calculate renewable curtailment
+            sim = self.unwrapped.simulator
+            curtailment = 0.0
+            
+            from gym_anm.simulator.components import RenewableGen
+            for dev in sim.devices.values():
+                if isinstance(dev, RenewableGen):
+                    # Only renewable generators, not slack or classical generators
+                    curtailment += np.maximum(0, dev.p_pot - dev.p)
+            
+            # Apply the increased weight to curtailment
+            # The base reward already includes curtailment at 1x weight
+            # So we add (weight - 1) times the curtailment
+            additional_penalty = curtailment * (self.curtailment_weight - 1.0) * sim.delta_t
+            base_reward -= additional_penalty
+        
+        return obs, base_reward, terminated, truncated, info
 
 
 # L0: Random Control (Baseline)

@@ -1,0 +1,38 @@
+# Controller variant configurations
+# Each base controller can have multiple variants through parameter grids
+
+L1:
+  class_path: create_algorithmic_diversity.L1_BangBang
+  template:
+    noisy: false
+    delay: 0
+    sigma: 0.005
+    params: {}
+  grid:
+    v_threshold: [0.95, 0.96, 0.97]
+    noisy: [false, true]
+    delay: [0, 2]
+
+L2:
+  class_path: create_algorithmic_diversity.L2_Proportional
+  template:
+    noisy: false
+    delay: 0
+    sigma: 0.005
+    params: {}
+  grid:
+    kp_renewable: [5.0, 10.0, 15.0]
+    noisy: [false, true]
+    delay: [0, 1]
+
+L3:
+  class_path: create_algorithmic_diversity.L3_PI_Controller
+  template:
+    noisy: false
+    delay: 0
+    sigma: 0.005
+    params: {}
+  grid:
+    ki: [1.0, 2.0, 3.0]
+    noisy: [false]
+    delay: [0, 2, 4]
